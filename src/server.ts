@@ -3,9 +3,27 @@ import { summarize, getDocContent } from "./summarize";
 import { moveDocument } from "./readwise";
 import { readFileSync } from "fs";
 import { resolve } from "path";
+import PocketBase from "pocketbase";
 
 const PORT = parseInt(process.env.PORT || "3141");
+const PB_URL = process.env.POCKETBASE_URL || "http://localhost:8090";
 const db = getDb();
+
+async function validateAuth(req: Request): Promise<boolean> {
+  const cookies = req.headers.get("cookie") || "";
+  const match = cookies.match(/pb_token=([^;]+)/);
+  if (!match) return false;
+
+  try {
+    const pb = new PocketBase(PB_URL);
+    pb.authStore.save(match[1], null);
+    // Validate token by refreshing auth
+    await pb.collection("users").authRefresh();
+    return pb.authStore.isValid;
+  } catch {
+    return false;
+  }
+}
 
 // Precompile statements
 const getNextDoc = db.prepare(`
@@ -85,6 +103,28 @@ const server = Bun.serve({
   async fetch(req) {
     const url = new URL(req.url);
 
+    // Serve login page and PB config without auth
+    if (url.pathname === "/login" || url.pathname === "/login.html") {
+      const html = readFileSync(resolve(import.meta.dir, "../public/login.html"), "utf-8");
+      const injected = html.replace(
+        "window.__PB_URL__ || window.location.origin.replace(/:\\d+$/, ':8090')",
+        `'${PB_URL}'`,
+      );
+      return new Response(injected, {
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      });
+    }
+
+    // Auth check for everything else
+    const authed = await validateAuth(req);
+    if (!authed) {
+      // API routes get 401, pages get redirected
+      if (url.pathname.startsWith("/api/")) {
+        return Response.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      return Response.redirect(new URL("/login", req.url).toString(), 302);
+    }
+
     if (url.pathname === "/api/next") {
       const offset = parseInt(url.searchParams.get("offset") || "0");
       const doc = getNextDoc.get(offset) as any;
@@ -143,6 +183,16 @@ const server = Bun.serve({
       insertSummary.run(documentId, result.summary, JSON.stringify(result.keyPoints));
 
       return Response.json(result);
+    }
+
+    if (url.pathname === "/logout") {
+      return new Response(null, {
+        status: 302,
+        headers: {
+          Location: "/login",
+          "Set-Cookie": "pb_token=; path=/; max-age=0",
+        },
+      });
     }
 
     if (url.pathname === "/" || url.pathname === "/index.html") {

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Readwise Triage — Login</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #0a0a0a;
+      --card: #141414;
+      --card-border: #222;
+      --text: #e8e8e8;
+      --text-dim: #888;
+      --text-dimmer: #555;
+      --accent: #4ade80;
+      --reject: #f87171;
+      --radius: 12px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .login-card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 40px;
+      width: 360px;
+      max-width: calc(100vw - 48px);
+    }
+
+    h1 {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-dimmer);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .field {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    input {
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--card-border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 15px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input:focus {
+      border-color: var(--accent);
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid var(--accent);
+      background: transparent;
+      color: var(--accent);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-top: 8px;
+    }
+
+    button:hover {
+      background: var(--accent);
+      color: #000;
+    }
+
+    .error {
+      color: var(--reject);
+      font-size: 13px;
+      text-align: center;
+      margin-top: 12px;
+      min-height: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-card">
+    <h1>Readwise Triage</h1>
+    <form id="loginForm">
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" autocomplete="email" autofocus required />
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" autocomplete="current-password" required />
+      </div>
+      <button type="submit">Sign in</button>
+    </form>
+    <div class="error" id="error"></div>
+  </div>
+
+  <script type="module">
+    import PocketBase from 'https://esm.sh/pocketbase@0.26.8';
+
+    const pb = new PocketBase(window.__PB_URL__ || window.location.origin.replace(/:\d+$/, ':8090'));
+
+    // If already authed, redirect
+    if (pb.authStore.isValid) {
+      window.location.href = '/';
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const errorEl = document.getElementById('error');
+      errorEl.textContent = '';
+
+      try {
+        const auth = await pb.collection('users').authWithPassword(email, password);
+        // Store the token for API calls
+        document.cookie = `pb_token=${pb.authStore.token}; path=/; max-age=${60*60*24*30}; SameSite=Strict`;
+        window.location.href = '/';
+      } catch (err) {
+        errorEl.textContent = 'Invalid email or password';
+      }
+    });
+  </script>
+</body>
+</html>
