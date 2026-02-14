@@ -79,7 +79,7 @@
       margin-top: 4px;
     }
 
-    .theme-toggle {
+    .theme-toggle, .sync-btn {
       background: none;
       border: 1px solid var(--card-border);
       border-radius: 8px;
@@ -90,8 +90,19 @@
       transition: all 0.2s;
     }
 
-    .theme-toggle:hover {
+    .theme-toggle:hover, .sync-btn:hover {
       border-color: var(--text-dim);
+    }
+
+    .sync-btn.syncing {
+      animation: spin 1s linear infinite;
+      pointer-events: none;
+      opacity: 0.5;
+    }
+
+    .header {
+      display: flex;
+      gap: 8px;
     }
 
     .card-container {
@@ -502,6 +513,7 @@
 </head>
 <body>
   <div class="header">
+    <button class="sync-btn" id="syncBtn" title="Sync with Readwise">↻</button>
     <button class="theme-toggle" id="themeToggle" title="Toggle theme">☀️</button>
   </div>
 
@@ -791,6 +803,30 @@
       if (d < 365) return `${Math.floor(d / 30)}mo ago`;
       return `${Math.floor(d / 365)}y ago`;
     }
+
+    // Sync
+    async function triggerSync() {
+      const btn = document.getElementById("syncBtn");
+      btn.classList.add("syncing");
+      try {
+        const res = await fetch("/api/sync", { method: "POST" });
+        const data = await res.json();
+        if (data.error) {
+          showToast(data.error);
+        } else if (data.updated > 0) {
+          showToast(`Synced ${data.updated} documents`);
+          await loadNext();
+        } else {
+          showToast("Already up to date");
+        }
+      } catch {
+        showToast("Sync failed");
+      } finally {
+        btn.classList.remove("syncing");
+      }
+    }
+
+    document.getElementById("syncBtn").addEventListener("click", triggerSync);
 
     // Boot
     loadNext();

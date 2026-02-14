@@ -1,13 +1,45 @@
 import { getDb } from "./db";
 import { summarize, getDocContent } from "./summarize";
 import { moveDocument } from "./readwise";
+import { syncLibrary } from "./sync";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 import PocketBase from "pocketbase";
 
 const PORT = parseInt(process.env.PORT || "3141");
 const PB_URL = process.env.POCKETBASE_URL || "http://localhost:8090";
+const SYNC_INTERVAL = parseInt(process.env.SYNC_INTERVAL || "900000"); // 15 min
 const db = getDb();
+
+// Sync state
+let syncing = false;
+let lastSyncAt: string | null = null;
+let lastSyncCount = 0;
+
+async function runSync(): Promise<{ updated: number; error?: string }> {
+  if (syncing) return { updated: 0, error: "Sync already in progress" };
+  syncing = true;
+  try {
+    const result = await syncLibrary(db);
+    lastSyncAt = new Date().toISOString();
+    lastSyncCount = result.updated;
+    return { updated: result.updated };
+  } catch (e: any) {
+    console.error("Sync failed:", e.message);
+    return { updated: 0, error: e.message };
+  } finally {
+    syncing = false;
+  }
+}
+
+// Background sync timer
+setInterval(() => {
+  console.log("Background sync starting...");
+  runSync();
+}, SYNC_INTERVAL);
+
+// Initial sync on boot
+runSync().then(r => console.log(`Initial sync: ${r.updated} docs`));
 
 async function validateAuth(req: Request): Promise<boolean> {
   const cookies = req.headers.get("cookie") || "";
@@ -165,6 +197,15 @@ const server = Bun.serve({
     if (url.pathname === "/api/reads") {
       const reads = getRecentReads.all();
       return Response.json(reads);
+    }
+
+    if (url.pathname === "/api/sync" && req.method === "POST") {
+      const result = await runSync();
+      return Response.json(result);
+    }
+
+    if (url.pathname === "/api/sync-status") {
+      return Response.json({ syncing, lastSyncAt, lastSyncCount });
     }
 
     if (url.pathname === "/api/summarize" && req.method === "POST") {

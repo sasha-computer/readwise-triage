@@ -1,5 +1,6 @@
 import { getDb } from "./db";
 import { listDocuments } from "./readwise";
+import type { Database } from "bun:sqlite";
 
 const SYNC_FIELDS = [
   "title",
@@ -14,12 +15,12 @@ const SYNC_FIELDS = [
   "tags",
 ];
 
-function getLastSyncTime(db: ReturnType<typeof getDb>): string | null {
+function getLastSyncTime(db: Database): string | null {
   const row = db.prepare("SELECT MAX(synced_at) as last_sync FROM documents").get() as any;
   return row?.last_sync || null;
 }
 
-async function syncLocation(location: string, db: ReturnType<typeof getDb>, updatedAfter?: string | null) {
+async function syncLocation(location: string, db: Database, updatedAfter?: string | null) {
   let cursor: string | null = null;
   let total = 0;
 
@@ -66,30 +67,38 @@ async function syncLocation(location: string, db: ReturnType<typeof getDb>, upda
   return total;
 }
 
-async function main() {
-  const db = getDb();
+/** Sync Readwise Reader library to local DB. Returns number of docs updated. */
+export async function syncLibrary(db: Database): Promise<{ updated: number; incremental: boolean }> {
   const lastSync = getLastSyncTime(db);
+  const incremental = !!lastSync;
 
-  if (lastSync) {
+  if (incremental) {
     console.log(`Incremental sync (changes since ${lastSync})...`);
   } else {
     console.log("Full sync (first run)...");
   }
 
-  let grand = 0;
+  let updated = 0;
   for (const loc of ["new", "later", "shortlist"]) {
-    grand += await syncLocation(loc, db, lastSync);
+    updated += await syncLocation(loc, db, lastSync);
   }
 
-  if (grand > 0) {
-    console.log(`\nSync complete. ${grand} documents updated.`);
+  if (updated > 0) {
+    console.log(`Sync complete. ${updated} documents updated.`);
   } else {
     console.log("Already up to date.");
   }
-  db.close();
+
+  return { updated, incremental };
 }
 
-main().catch((err) => {
-  console.error("Sync failed:", err.message);
-  process.exit(1);
-});
+// CLI entrypoint
+if (import.meta.main) {
+  const db = getDb();
+  syncLibrary(db)
+    .then(() => db.close())
+    .catch((err) => {
+      console.error("Sync failed:", err.message);
+      process.exit(1);
+    });
+}
