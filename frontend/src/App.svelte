@@ -38,7 +38,7 @@
         {/if}
       </button>
     </div>
-    <p class="install-sub">Then <code class="inline-code">bun run sync</code> and <code class="inline-code">bun run dev</code> to start swiping.</p>
+    <p class="install-sub">Then <code class="inline-code">bun run start</code> to sync and start swiping.</p>
   </section>
 
   <!-- How it works -->

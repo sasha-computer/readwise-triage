@@ -56,21 +56,20 @@ You'll need:
 
 ## Usage
 
-### Sync your library
-
-Pull documents from Readwise Reader into the local database:
+Sync your library and start the UI in one command:
 
 ```bash
-bun run sync
-```
-
-### Start the triage UI
-
-```bash
-bun run dev
+bun run start
 ```
 
 Open [localhost:3141](http://localhost:3141) and start swiping.
+
+You can also run sync and dev separately if you prefer:
+
+```bash
+bun run sync   # pull documents from Readwise Reader
+bun run dev    # start the triage UI
+```
 
 ### Keyboard shortcuts
 
