@@ -14,7 +14,12 @@ const SYNC_FIELDS = [
   "tags",
 ];
 
-async function syncLocation(location: string, db: ReturnType<typeof getDb>) {
+function getLastSyncTime(db: ReturnType<typeof getDb>): string | null {
+  const row = db.prepare("SELECT MAX(synced_at) as last_sync FROM documents").get() as any;
+  return row?.last_sync || null;
+}
+
+async function syncLocation(location: string, db: ReturnType<typeof getDb>, updatedAfter?: string | null) {
   let cursor: string | null = null;
   let total = 0;
 
@@ -30,7 +35,7 @@ async function syncLocation(location: string, db: ReturnType<typeof getDb>) {
   `);
 
   do {
-    const res = await listDocuments(location, 100, cursor, SYNC_FIELDS);
+    const res = await listDocuments(location, 100, cursor, SYNC_FIELDS, updatedAfter);
     const docs = res.results || [];
 
     for (const doc of docs) {
@@ -53,22 +58,34 @@ async function syncLocation(location: string, db: ReturnType<typeof getDb>) {
 
     total += docs.length;
     cursor = res.nextPageCursor || null;
-    console.log(`  ${location}: synced ${total} docs${cursor ? ", fetching more..." : ""}`);
+    if (docs.length > 0) {
+      console.log(`  ${location}: synced ${total} docs${cursor ? ", fetching more..." : ""}`);
+    }
   } while (cursor);
 
   return total;
 }
 
 async function main() {
-  console.log("Syncing Readwise library...");
   const db = getDb();
+  const lastSync = getLastSyncTime(db);
+
+  if (lastSync) {
+    console.log(`Incremental sync (changes since ${lastSync})...`);
+  } else {
+    console.log("Full sync (first run)...");
+  }
 
   let grand = 0;
   for (const loc of ["new", "later", "shortlist"]) {
-    grand += await syncLocation(loc, db);
+    grand += await syncLocation(loc, db, lastSync);
   }
 
-  console.log(`\nSync complete. ${grand} documents indexed.`);
+  if (grand > 0) {
+    console.log(`\nSync complete. ${grand} documents updated.`);
+  } else {
+    console.log("Already up to date.");
+  }
   db.close();
 }
 

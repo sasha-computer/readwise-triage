@@ -87,10 +87,12 @@ export async function listDocuments(
   limit: number = 100,
   cursor?: string | null,
   fields?: string[],
+  updatedAfter?: string | null,
 ): Promise<{ results: any[]; nextPageCursor: string | null }> {
   const params: Record<string, unknown> = { location, limit };
   if (cursor) params.page_cursor = cursor;
   if (fields) params.response_fields = fields;
+  if (updatedAfter) params.updated_after = updatedAfter;
 
   const res = await mcpCall("reader_list_documents", params);
   return {
