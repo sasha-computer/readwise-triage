@@ -1,0 +1,13 @@
+{
+  "name": "readwise-triage",
+  "version": "1.0.0",
+  "description": "Tinder-style swipe UI for triaging your Readwise Reader inbox",
+  "scripts": {
+    "dev": "bun run src/server.ts",
+    "sync": "bun run src/sync.ts",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "bun-types": "latest"
+  }
+}

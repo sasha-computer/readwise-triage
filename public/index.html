@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Readwise Triage</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #0a0a0a;
+      --card: #141414;
+      --card-border: #222;
+      --text: #e8e8e8;
+      --text-dim: #888;
+      --text-dimmer: #555;
+      --accent: #4ade80;
+      --reject: #f87171;
+      --tag-bg: #1a1a1a;
+      --tag-border: #2a2a2a;
+      --overlay-bg: rgba(0,0,0,0.85);
+      --hover-bg: #1a1a1a;
+      --radius: 12px;
+    }
+
+    html.light {
+      --bg: #f5f5f4;
+      --card: #ffffff;
+      --card-border: #e5e5e5;
+      --text: #1a1a1a;
+      --text-dim: #666;
+      --text-dimmer: #999;
+      --accent: #16a34a;
+      --reject: #dc2626;
+      --tag-bg: #f0f0f0;
+      --tag-border: #ddd;
+      --overlay-bg: rgba(0,0,0,0.5);
+      --hover-bg: #f5f5f5;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      user-select: none;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    .header {
+      position: fixed;
+      top: 12px;
+      right: 16px;
+      z-index: 10;
+    }
+
+    .title-block {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .title-block h1 {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-dimmer);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+
+    .counter {
+      font-size: 12px;
+      color: var(--text-dimmer);
+      font-variant-numeric: tabular-nums;
+      margin-top: 4px;
+    }
+
+    .theme-toggle {
+      background: none;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 4px 10px;
+      cursor: pointer;
+      font-size: 16px;
+      color: var(--text-dim);
+      transition: all 0.2s;
+    }
+
+    .theme-toggle:hover {
+      border-color: var(--text-dim);
+    }
+
+    .card-container {
+      position: relative;
+      width: 480px;
+      max-width: calc(100vw - 48px);
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+                  opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+                  background 0.3s, border-color 0.3s;
+    }
+
+    .card.swiping-left {
+      transform: translateX(-120%) rotate(-8deg);
+      opacity: 0;
+    }
+
+    .card.swiping-right {
+      transform: translateX(120%) rotate(8deg);
+      opacity: 0;
+    }
+
+    .card.entering {
+      transform: translateY(20px);
+      opacity: 0;
+    }
+
+    .card-image {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+      display: block;
+      background: var(--tag-bg);
+    }
+
+    .card-image.no-image {
+      height: 0;
+    }
+
+    .card-body {
+      padding: 24px;
+    }
+
+    .card-category {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-dimmer);
+      margin-bottom: 8px;
+    }
+
+    .card-title {
+      font-size: 20px;
+      font-weight: 600;
+      line-height: 1.3;
+      margin-bottom: 8px;
+    }
+
+    .card-author {
+      font-size: 14px;
+      color: var(--text-dim);
+      margin-bottom: 16px;
+    }
+
+    .card-summary {
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--text-dim);
+      margin-bottom: 16px;
+      display: -webkit-box;
+      -webkit-line-clamp: 4;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .card-meta {
+      display: flex;
+      gap: 16px;
+      font-size: 12px;
+      color: var(--text-dimmer);
+    }
+
+    .card-tags {
+      margin-top: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .tag {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 99px;
+      background: var(--tag-bg);
+      color: var(--text-dim);
+      border: 1px solid var(--tag-border);
+    }
+
+    .actions {
+      display: flex;
+      gap: 20px;
+      margin-top: 32px;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .action-btn {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      border: 2px solid var(--card-border);
+      background: var(--card);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      font-size: 22px;
+    }
+
+    .action-btn:hover {
+      transform: scale(1.1);
+    }
+
+    .action-btn.dismiss {
+      border-color: var(--reject);
+      color: var(--reject);
+    }
+
+    .action-btn.dismiss:hover {
+      background: var(--reject);
+      color: white;
+    }
+
+    .action-btn.keep {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .action-btn.keep:hover {
+      background: var(--accent);
+      color: white;
+    }
+
+    .action-btn.detail {
+      width: 44px;
+      height: 44px;
+      border-color: var(--text-dimmer);
+      color: var(--text-dimmer);
+      font-size: 18px;
+    }
+
+    .action-btn.detail:hover {
+      border-color: var(--text-dim);
+      color: var(--text);
+      background: var(--hover-bg);
+    }
+
+    .hints {
+      position: fixed;
+      bottom: 16px;
+      display: flex;
+      gap: 20px;
+      font-size: 12px;
+      color: var(--text-dimmer);
+    }
+
+    .hints kbd {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--card-border);
+      background: var(--tag-bg);
+      font-family: inherit;
+      font-size: 11px;
+      margin-right: 4px;
+    }
+
+    /* Read feed */
+    .read-feed {
+      position: fixed;
+      right: 24px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 220px;
+      max-height: 60vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .read-feed-title {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-dimmer);
+      opacity: 0.5;
+      margin-bottom: 8px;
+    }
+
+    .read-feed-item {
+      font-size: 12px;
+      color: var(--text-dimmer);
+      opacity: 0.45;
+      padding: 4px 0;
+      line-height: 1.4;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      animation: feedSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .read-feed-item::before {
+      content: "Read: ";
+      font-weight: 500;
+      opacity: 0.7;
+    }
+
+    @keyframes feedSlideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-8px);
+        max-height: 0;
+      }
+      to {
+        opacity: 0.45;
+        transform: translateY(0);
+        max-height: 30px;
+      }
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 48px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 13px;
+      color: var(--text-dim);
+      opacity: 0;
+      transition: all 0.3s;
+      pointer-events: none;
+      z-index: 50;
+    }
+
+    .toast.visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* Summary overlay */
+    .summary-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: var(--overlay-bg);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .summary-overlay.visible {
+      display: flex;
+    }
+
+    .summary-panel {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      max-width: 560px;
+      width: 100%;
+      max-height: 80vh;
+      overflow-y: auto;
+      padding: 32px;
+    }
+
+    .summary-panel h2 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    .summary-panel .summary-text {
+      font-size: 15px;
+      line-height: 1.7;
+      color: var(--text-dim);
+      margin-bottom: 20px;
+    }
+
+    .summary-panel .key-points {
+      list-style: none;
+      padding: 0;
+    }
+
+    .summary-panel .key-points li {
+      padding: 8px 0;
+      padding-left: 20px;
+      position: relative;
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--text-dim);
+      border-bottom: 1px solid var(--tag-bg);
+    }
+
+    .summary-panel .key-points li:last-child {
+      border-bottom: none;
+    }
+
+    .summary-panel .key-points li::before {
+      content: "\2192";
+      position: absolute;
+      left: 0;
+      color: var(--accent);
+    }
+
+    .summary-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 24px;
+    }
+
+    .summary-actions button {
+      flex: 1;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid var(--card-border);
+      background: var(--card);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.15s;
+    }
+
+    .summary-actions button:hover {
+      background: var(--hover-bg);
+    }
+
+    .summary-actions .read-btn {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .summary-actions .read-btn:hover {
+      background: var(--accent);
+      color: white;
+    }
+
+    .summary-actions .archive-btn {
+      border-color: var(--text-dimmer);
+      color: var(--text-dimmer);
+    }
+
+    .summary-actions .archive-btn:hover {
+      border-color: var(--reject);
+      color: var(--reject);
+    }
+
+    .loading {
+      color: var(--text-dimmer);
+      font-size: 14px;
+      text-align: center;
+      padding: 40px;
+    }
+
+    .loading .spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--card-border);
+      border-top-color: var(--text-dim);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 12px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .empty {
+      text-align: center;
+      color: var(--text-dim);
+    }
+
+    .empty h2 {
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+
+    .empty p {
+      color: var(--text-dimmer);
+    }
+
+    @media (max-width: 900px) {
+      .read-feed { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <button class="theme-toggle" id="themeToggle" title="Toggle theme">☀️</button>
+  </div>
+
+  <div class="title-block">
+    <h1>Readwise Triage</h1>
+    <div class="counter" id="counter"></div>
+  </div>
+
+  <div class="card-container" id="cardContainer"></div>
+
+  <div class="actions" id="actions" style="display:none">
+    <button class="action-btn dismiss" id="btnDismiss" title="Archive (←)">✕</button>
+    <button class="action-btn detail" id="btnDetail" title="Summary (↓)">⤓</button>
+    <button class="action-btn keep" id="btnKeep" title="Keep (→)">✓</button>
+  </div>
+
+  <div class="read-feed" id="readFeed">
+    <div class="read-feed-title">Recently read</div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <div class="hints">
+    <span><kbd>←</kbd> archive</span>
+    <span><kbd>↓</kbd> summary</span>
+    <span><kbd>→</kbd> keep</span>
+    <span><kbd>u</kbd> undo</span>
+    <span><kbd>Esc</kbd> close</span>
+  </div>
+
+  <div class="summary-overlay" id="summaryOverlay">
+    <div class="summary-panel">
+      <h2 id="summaryTitle"></h2>
+      <div class="summary-text" id="summaryText"></div>
+      <ul class="key-points" id="keyPoints"></ul>
+      <div class="summary-actions">
+        <button onclick="closeSummary()">Back</button>
+        <button class="archive-btn" onclick="archiveFromSummary()">Archive</button>
+        <button class="read-btn" id="readBtn" onclick="openArticle()">Read full article ↗</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentDoc = null;
+    let isAnimating = false;
+    let canUndo = false;
+
+    // Theme
+    const savedTheme = localStorage.getItem("rw-theme");
+    if (savedTheme === "light") document.documentElement.classList.add("light");
+    updateThemeIcon();
+
+    document.getElementById("themeToggle").addEventListener("click", () => {
+      document.documentElement.classList.toggle("light");
+      const isLight = document.documentElement.classList.contains("light");
+      localStorage.setItem("rw-theme", isLight ? "light" : "dark");
+      updateThemeIcon();
+    });
+
+    function updateThemeIcon() {
+      const isLight = document.documentElement.classList.contains("light");
+      document.getElementById("themeToggle").textContent = isLight ? "🌙" : "☀️";
+    }
+
+    // Toast
+    let toastTimeout = null;
+    function showToast(msg) {
+      const el = document.getElementById("toast");
+      el.textContent = msg;
+      el.classList.add("visible");
+      clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => el.classList.remove("visible"), 2500);
+    }
+
+    // Read feed
+    async function loadReadFeed() {
+      const res = await fetch("/api/reads");
+      const reads = await res.json();
+      const feed = document.getElementById("readFeed");
+      // Keep the title, clear items
+      feed.innerHTML = '<div class="read-feed-title">Recently read</div>';
+      if (reads.length === 0) {
+        feed.style.display = "none";
+        return;
+      }
+      feed.style.display = "flex";
+      for (const r of reads) {
+        const item = document.createElement("div");
+        item.className = "read-feed-item";
+        item.textContent = r.title;
+        item.style.animation = "none"; // no animation on initial load
+        feed.appendChild(item);
+      }
+    }
+
+    function addToReadFeed(title) {
+      const feed = document.getElementById("readFeed");
+      feed.style.display = "flex";
+      const titleEl = feed.querySelector(".read-feed-title");
+      const item = document.createElement("div");
+      item.className = "read-feed-item";
+      item.textContent = title;
+      // Insert after title
+      if (titleEl.nextSibling) {
+        feed.insertBefore(item, titleEl.nextSibling);
+      } else {
+        feed.appendChild(item);
+      }
+      // Cap at 20 items (plus title)
+      while (feed.children.length > 21) {
+        feed.removeChild(feed.lastChild);
+      }
+    }
+
+    async function loadNext() {
+      const res = await fetch("/api/next");
+      const { doc, remaining } = await res.json();
+
+      document.getElementById("counter").textContent = remaining ? `${remaining} remaining` : "";
+
+      if (!doc) {
+        document.getElementById("cardContainer").innerHTML = `
+          <div class="empty">
+            <h2>All done</h2>
+            <p>No more documents to triage. Run sync to pull new ones.</p>
+          </div>`;
+        document.getElementById("actions").style.display = "none";
+        return;
+      }
+
+      currentDoc = doc;
+      document.getElementById("actions").style.display = "flex";
+
+      const tags = doc.tags ? Object.keys(JSON.parse(doc.tags || "{}")) : [];
+      const savedDate = doc.saved_at ? timeAgo(new Date(doc.saved_at)) : "";
+
+      const card = document.createElement("div");
+      card.className = "card entering";
+      card.innerHTML = `
+        ${doc.image_url ? `<img class="card-image" src="${doc.image_url}" onerror="this.className='card-image no-image'" />` : ""}
+        <div class="card-body">
+          <div class="card-category">${doc.category || "article"}</div>
+          <div class="card-title">${escHtml(doc.title || "Untitled")}</div>
+          <div class="card-author">${escHtml(doc.author || "")}</div>
+          <div class="card-summary">${escHtml(doc.summary || "")}</div>
+          <div class="card-meta">
+            ${doc.word_count ? `<span>${doc.word_count.toLocaleString()} words</span>` : ""}
+            ${doc.reading_time ? `<span>${doc.reading_time}</span>` : ""}
+            ${savedDate ? `<span>Saved ${savedDate}</span>` : ""}
+          </div>
+          ${tags.length ? `<div class="card-tags">${tags.map(t => `<span class="tag">${escHtml(t)}</span>`).join("")}</div>` : ""}
+        </div>`;
+
+      const container = document.getElementById("cardContainer");
+      container.innerHTML = "";
+      container.appendChild(card);
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => card.classList.remove("entering"));
+      });
+    }
+
+    async function swipe(action) {
+      if (!currentDoc || isAnimating) return;
+      isAnimating = true;
+
+      const card = document.querySelector(".card");
+      card.classList.add(action === "dismiss" ? "swiping-left" : "swiping-right");
+
+      const label = action === "dismiss" ? "Archived" : "Kept";
+      showToast(`${label}: ${currentDoc.title}`);
+
+      await fetch("/api/swipe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ documentId: currentDoc.id, action }),
+      });
+
+      canUndo = true;
+
+      setTimeout(async () => {
+        await loadNext();
+        isAnimating = false;
+      }, 350);
+    }
+
+    async function undo() {
+      if (!canUndo || isAnimating) return;
+
+      const res = await fetch("/api/undo", { method: "POST" });
+      const data = await res.json();
+      if (!data.ok) {
+        showToast("Nothing to undo");
+        return;
+      }
+
+      canUndo = false;
+      showToast(`Restored: ${data.title}`);
+      await loadNext();
+    }
+
+    async function showSummary() {
+      if (!currentDoc) return;
+
+      const overlay = document.getElementById("summaryOverlay");
+      overlay.classList.add("visible");
+      document.getElementById("summaryTitle").textContent = currentDoc.title;
+      document.getElementById("summaryText").innerHTML = `<div class="loading"><div class="spinner"></div><br>Generating summary...</div>`;
+      document.getElementById("keyPoints").innerHTML = "";
+
+      const res = await fetch("/api/summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ documentId: currentDoc.id, title: currentDoc.title }),
+      });
+
+      const { summary, keyPoints } = await res.json();
+      document.getElementById("summaryText").textContent = summary;
+      document.getElementById("keyPoints").innerHTML = (keyPoints || [])
+        .map(p => `<li>${escHtml(p)}</li>`).join("");
+    }
+
+    function closeSummary() {
+      document.getElementById("summaryOverlay").classList.remove("visible");
+    }
+
+    async function openArticle() {
+      if (!currentDoc?.source_url) return;
+
+      // Log the read
+      await fetch("/api/read", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          documentId: currentDoc.id,
+          title: currentDoc.title,
+          sourceUrl: currentDoc.source_url,
+        }),
+      });
+
+      addToReadFeed(currentDoc.title);
+      window.open(currentDoc.source_url, "_blank");
+    }
+
+    async function archiveFromSummary() {
+      if (!currentDoc) return;
+      closeSummary();
+      await swipe("dismiss");
+    }
+
+    // Keyboard shortcuts
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        closeSummary();
+        return;
+      }
+
+      if (document.getElementById("summaryOverlay").classList.contains("visible")) return;
+
+      if (e.key === "ArrowLeft") swipe("dismiss");
+      else if (e.key === "ArrowRight") swipe("keep");
+      else if (e.key === "ArrowDown") showSummary();
+      else if (e.key === "u" || e.key === "U") undo();
+    });
+
+    // Button handlers
+    document.getElementById("btnDismiss").addEventListener("click", () => swipe("dismiss"));
+    document.getElementById("btnKeep").addEventListener("click", () => swipe("keep"));
+    document.getElementById("btnDetail").addEventListener("click", showSummary);
+
+
+    // Helpers
+    function escHtml(s) {
+      const d = document.createElement("div");
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    function timeAgo(date) {
+      const s = Math.floor((Date.now() - date.getTime()) / 1000);
+      if (s < 60) return "just now";
+      if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+      if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+      const d = Math.floor(s / 86400);
+      if (d < 30) return `${d}d ago`;
+      if (d < 365) return `${Math.floor(d / 30)}mo ago`;
+      return `${Math.floor(d / 365)}y ago`;
+    }
+
+    // Boot
+    loadNext();
+    loadReadFeed();
+  </script>
+</body>
+</html>
