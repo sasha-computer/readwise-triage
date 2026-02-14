@@ -55,6 +55,15 @@ export async function summarize(
       keyPoints: parsed.keyPoints || [],
     };
   } catch {
+    // If the raw text looks like it contains JSON, try to extract fields
+    const summaryMatch = text.match(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    const keyPointsMatch = text.match(/"keyPoints"\s*:\s*\[([^\]]*)\]/);
+    if (summaryMatch) {
+      const keyPoints = keyPointsMatch
+        ? keyPointsMatch[1].match(/"((?:[^"\\]|\\.)*)"/g)?.map(s => s.slice(1, -1)) || []
+        : [];
+      return { summary: summaryMatch[1].replace(/\\"/g, '"'), keyPoints };
+    }
     return { summary: text, keyPoints: [] };
   }
 }
