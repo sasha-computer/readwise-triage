@@ -25,7 +25,7 @@ export async function summarize(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "moonshotai/kimi-k2.5",
+      model: "google/gemini-3-flash-preview",
       messages: [
         {
           role: "system",
